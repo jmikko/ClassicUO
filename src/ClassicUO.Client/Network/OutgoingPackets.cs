@@ -3022,6 +3022,24 @@ namespace ClassicUO.Network
             writer.Dispose();
         }
 
+        /// <summary>
+        /// Writes a string in the form ServUO's EncodedReader.ReadUnicodeStringSafe reads: the
+        /// type tag 2, a character count, then big-endian UTF-16. The count is in characters
+        /// rather than bytes, which is what the server doubles when it reads.
+        /// </summary>
+        private static void WriteEncodedString(ref StackDataWriter writer, string value)
+        {
+            value = value ?? string.Empty;
+
+            writer.WriteUInt8(2);
+            writer.WriteUInt16BE((ushort)value.Length);
+
+            if (value.Length > 0)
+            {
+                writer.WriteUnicodeBE(value, value.Length);
+            }
+        }
+
         public static void Send_DnDLevelUpSubmit
         (
             this NetClient socket, World world,
@@ -3045,8 +3063,12 @@ namespace ClassicUO.Network
             writer.WriteUInt32BE(world.Player.Serial);
             writer.WriteUInt16BE(0x45);
 
-            writer.WriteASCII(chosenClass ?? string.Empty);
-            writer.WriteASCII(chosenFeat ?? string.Empty);
+            // These have to be written the way ServUO's EncodedReader expects, exactly as the
+            // integers below are: a type tag, then the payload. A bare WriteASCII has no tag, so
+            // the server's tag check failed, returned an empty string, and left the read position
+            // one byte into the name - which misaligned every field after it as well.
+            WriteEncodedString(ref writer, chosenClass);
+            WriteEncodedString(ref writer, chosenFeat);
 
             for (int i = 0; i < 6; i++)
             {
