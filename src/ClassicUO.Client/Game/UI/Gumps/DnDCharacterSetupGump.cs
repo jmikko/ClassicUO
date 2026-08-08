@@ -36,10 +36,14 @@ namespace ClassicUO.Game.UI.Gumps
         // (display name, Race.RaceIndex) - the index is the server's actual RaceIndex, NOT a
         // sequential position, since race-registration order across files isn't guaranteed (see
         // DnDCharacterSetupEventArgs.SpeciesIndex server-side for the full reasoning). Must match
-        // Scripts/Misc/RaceDefinitions.cs (0/1/2) and Scripts/Engines/Races/RaceSystem.cs (32-37).
+        // Scripts/Misc/RaceDefinitions.cs (0/1) and Scripts/Engines/Races/RaceSystem.cs (32-37).
+        //
+        // Index 2 was Gargoyle, which is a ServUO race with no D&D equivalent and has been removed
+        // server-side; the gap in the numbering is deliberate, since these are RaceIndex values
+        // rather than positions.
         private static readonly (string Name, int RaceIndex)[] _species =
         {
-            ("Human", 0), ("Elf", 1), ("Gargoyle", 2),
+            ("Human", 0), ("Elf", 1),
             ("Dwarf", 32), ("Halfling", 33), ("Gnome", 34),
             ("Half-Orc", 35), ("Tiefling", 36), ("Dragonborn", 37)
         };
