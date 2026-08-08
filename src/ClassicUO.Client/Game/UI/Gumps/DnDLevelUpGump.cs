@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using ClassicUO.Game.Data;
 using ClassicUO.Game.DnD;
 using ClassicUO.Game.UI.Controls;
 using ClassicUO.Network;
@@ -75,7 +76,7 @@ namespace ClassicUO.Game.UI.Gumps
                 for (int i = 0; i < classes.Count; i++)
                 {
                     string displayName = string.IsNullOrEmpty(classes[i].parent) ? classes[i].name : $"{classes[i].name} ({classes[i].parent})";
-                    NiceButton btn = new NiceButton(14 + (col * 190), currentY + (row * 24), 180, 20, ButtonAction.Activate, displayName, 0);
+                    NiceButton btn = new NiceButton(14 + (col * 190), currentY + (row * 24), 180, 20, ButtonAction.Activate, displayName, 1);
                     btn.ButtonParameter = BUTTON_CLASS_BASE + i;
                     btn.IsSelected = false;
                     Add(btn);
@@ -119,11 +120,11 @@ namespace ClassicUO.Game.UI.Gumps
                 currentY = asiStartY;
                 if (feats.Count > 0)
                 {
-                    Add(new Label("Available Feats:", true, 0x0481, Width - 20, 0xFF, FontStyle.BlackBorder) { X = 200, Y = currentY });
+                    Add(new Label("Available Feats:", true, DnDStyle.HueHeading, Width - 20, 1, FontStyle.BlackBorder) { X = 200, Y = currentY });
                     currentY += 24;
                     for (int i = 0; i < feats.Count; i++)
                     {
-                        NiceButton btn = new NiceButton(200, currentY, 150, 20, ButtonAction.Activate, feats[i], 0);
+                        NiceButton btn = new NiceButton(200, currentY, 150, 20, ButtonAction.Activate, feats[i], 2);
                         btn.ButtonParameter = BUTTON_FEAT_BASE + i;
                         btn.IsSelected = false;
                         Add(btn);
@@ -170,6 +171,22 @@ namespace ClassicUO.Game.UI.Gumps
         {
             if (buttonID == BUTTON_CONFIRM)
             {
+                // The server ignores a submission with no class, so without this the button would
+                // simply appear to do nothing.
+                if (_pendingLevels > 0 && string.IsNullOrEmpty(_chosenClass))
+                {
+                    World.MessageManager.HandleMessage(
+                        null,
+                        "Choose a class for this level first.",
+                        string.Empty,
+                        0x0021,
+                        MessageType.Regular,
+                        3,
+                        TextType.CLIENT);
+
+                    return;
+                }
+
                 List<int> selectedSpellIds = new List<int>();
                 foreach (int spellId in _selectedSpellIds)
                 {
@@ -186,36 +203,47 @@ namespace ClassicUO.Game.UI.Gumps
                 int classIdx = buttonID - BUTTON_CLASS_BASE;
                 var cls = _classes[classIdx];
                 
+                // NiceButton.OnMouseUp sets IsSelected BEFORE calling this, so the button cannot
+                // be asked what it was before the click - it always answers "selected", and
+                // toggling off that answer cleared the choice every single time. The gump's own
+                // field is the source of truth; the buttons only display it. The spell block below
+                // already worked this way, which is why spells could be picked and classes could not.
+                _chosenClass = cls.name;
+
                 foreach (var kv in _classButtons)
                 {
-                    kv.Value.IsSelected = (kv.Key == buttonID && !kv.Value.IsSelected);
+                    kv.Value.IsSelected = kv.Key == buttonID;
                 }
-                _chosenClass = _classButtons[buttonID].IsSelected ? cls.name : string.Empty;
             }
             else if (buttonID >= BUTTON_FEAT_BASE && buttonID < BUTTON_FEAT_BASE + _feats.Count)
             {
                 int featIdx = buttonID - BUTTON_FEAT_BASE;
                 var feat = _feats[featIdx];
 
-                // Choosing a feat costs ASI
+                // A feat is optional, so clicking the one already taken clears it. That decision
+                // has to come from _chosenFeat rather than the button, for the reason above.
+                bool alreadyChosen = _chosenFeat == feat;
+
+                _chosenFeat = alreadyChosen ? string.Empty : feat;
+
                 foreach (var kv in _featButtons)
                 {
-                    kv.Value.IsSelected = (kv.Key == buttonID && !kv.Value.IsSelected);
+                    kv.Value.IsSelected = !alreadyChosen && kv.Key == buttonID;
                 }
-                
-                if (_featButtons[buttonID].IsSelected)
+
+                // Taking a feat spends the whole ability score improvement, so any points already
+                // placed have to go back.
+                _asiSpent = alreadyChosen ? 0 : 2;
+
+                if (!alreadyChosen)
                 {
-                    _chosenFeat = feat;
-                    _asiSpent = 2; // Assuming feats cost 2 points (full ASI)
-                    for(int i=0; i<6; i++) _abilityIncreases[i] = 0; // Clear stat boosts
-                    UpdateASILabels();
+                    for (int i = 0; i < 6; i++)
+                    {
+                        _abilityIncreases[i] = 0;
+                    }
                 }
-                else
-                {
-                    _chosenFeat = string.Empty;
-                    _asiSpent = 0;
-                    UpdateASILabels();
-                }
+
+                UpdateASILabels();
             }
             else if (buttonID >= BUTTON_ASI_INC_BASE && buttonID < BUTTON_ASI_INC_BASE + 6)
             {
