@@ -13,26 +13,46 @@ using ClassicUO.Renderer;
 namespace ClassicUO.Game.UI.Gumps
 {
     /// <summary>
-    /// The D&amp;D spellbook: the spells the character can cast, their remaining slots, and a button
-    /// per spell that puts the cursor into targeting mode.
+    /// The spellbook: two facing pages of spell icons, turned with the arrows at the foot.
     /// <para>
-    /// Nothing here decides whether a cast is legal. Clicking a spell sends a request and the server
-    /// answers with DnDCastResult, which is what produces the message the player sees - so the
-    /// window can never show a cast succeeding that the rules refused.
+    /// A book rather than a list, because that is what a spellbook is - and because a flat list of
+    /// names told a player nothing at a glance. An icon is recognisable after you have cast it
+    /// once; a line of text has to be read every time, and a 1st-level wizard already has 27.
+    /// </para>
+    /// <para>
+    /// Nothing here decides whether a cast is legal. Clicking a spell sends a request and the
+    /// server answers with DnDCastResult, which is what produces the message the player sees - so
+    /// the book can never show a cast succeeding that the rules refused.
     /// </para>
     /// </summary>
     internal class DnDSpellbookGump : Gump
     {
         private const int SPELL_BUTTON_BASE_ID = 100;
-        private const int ROW_HEIGHT = 22;
-        private const int HEADER_HEIGHT = 60;
-        private const int FOOTER_HEIGHT = 14;
+        private const int BUTTON_PREVIOUS = 1;
+        private const int BUTTON_NEXT = 2;
+
+        private const int WIDTH = 480;
+        private const int HEIGHT = 380;
+
+        private const int PAGE_TOP = 62;
+        private const int ROWS = 5;
+        private const int COLUMNS = 2;
+
+        /// <summary>Two facing pages, each a grid of the same size.</summary>
+        private const int PER_PAGE = ROWS * COLUMNS * 2;
+
+        // UO's magery spell icons: 64 consecutive gumps. Spells are spread across them by school so
+        // that a school's spells look like a set, without needing art of our own - art would have to
+        // ship with the client and be kept in step with it.
+        private const ushort ICON_BASE = 0x08C0;
+        private const int ICONS_PER_SCHOOL = 8;
 
         private readonly List<DnDSpellEntry> _rows = new List<DnDSpellEntry>();
+        private readonly List<Control> _pageControls = new List<Control>();
 
         private Label _slotsLabel;
-        private ResizePic _background;
-        private readonly List<Control> _spellControls = new List<Control>();
+        private Label _pageLabel;
+        private int _page;
 
         public DnDSpellbookGump(World world) : base(world, 0, 0)
         {
@@ -40,13 +60,18 @@ namespace ClassicUO.Game.UI.Gumps
             CanCloseWithRightClick = true;
             AcceptMouseInput = true;
 
-            Width = 240;
-            Height = HEADER_HEIGHT + FOOTER_HEIGHT;
+            Width = WIDTH;
+            Height = HEIGHT;
 
-            _background = new ResizePic(DnDStyle.BackgroundGraphic) { Width = Width, Height = Height };
-            Add(_background);
+            Add(new ResizePic(DnDStyle.BackgroundGraphic) { Width = Width, Height = Height });
 
-            Add(new Label("Spellbook", true, DnDStyle.HueTitle, Width - 20, 1, FontStyle.BlackBorder) { X = DnDStyle.Margin, Y = 10 });
+            Add(
+                new Label("Spellbook", true, DnDStyle.HueTitle, Width - 20, 1, FontStyle.BlackBorder)
+                {
+                    X = DnDStyle.Margin,
+                    Y = 10
+                });
+
             Add(new Line(DnDStyle.Margin, 32, Width - (DnDStyle.Margin * 2), 1, DnDStyle.RuleColour));
 
             _slotsLabel = new Label(string.Empty, true, DnDStyle.HueMuted, Width - 20, 1, FontStyle.BlackBorder)
@@ -57,10 +82,48 @@ namespace ClassicUO.Game.UI.Gumps
 
             Add(_slotsLabel);
 
+            // The spine. Two columns of icons either side of it is what makes this read as an open
+            // book rather than as a window with a line down the middle.
+            Add(new Line(WIDTH / 2, PAGE_TOP - 6, 1, HEIGHT - PAGE_TOP - 46, DnDStyle.RuleColour));
+
+            BuildFooter();
+
             DnDSpellState.Changed += OnSpellStateChanged;
             DnDSpellState.CastResolved += OnCastResolved;
 
             RequestUpdateContents();
+        }
+
+        private void BuildFooter()
+        {
+            int y = HEIGHT - 34;
+
+            Add(new Line(DnDStyle.Margin, y - 8, Width - (DnDStyle.Margin * 2), 1, DnDStyle.RuleColour));
+
+            // UO's own page-turn arrows, which anyone who has opened a book in this client knows.
+            Add(
+                new Button(BUTTON_PREVIOUS, 0x08BB, 0x08BC)
+                {
+                    X = DnDStyle.Margin,
+                    Y = y,
+                    ButtonAction = ButtonAction.Activate
+                });
+
+            Add(
+                new Button(BUTTON_NEXT, 0x08BE, 0x08BF)
+                {
+                    X = Width - DnDStyle.Margin - 22,
+                    Y = y,
+                    ButtonAction = ButtonAction.Activate
+                });
+
+            _pageLabel = new Label(string.Empty, true, DnDStyle.HueMuted, 200, 1, FontStyle.BlackBorder)
+            {
+                X = (WIDTH / 2) - 50,
+                Y = y + 2
+            };
+
+            Add(_pageLabel);
         }
 
         private void OnSpellStateChanged()
@@ -81,7 +144,6 @@ namespace ClassicUO.Game.UI.Gumps
                 return;
             }
 
-            // Green for a cast that worked, red for one the rules refused.
             World.MessageManager.HandleMessage
             (
                 null,
@@ -94,110 +156,97 @@ namespace ClassicUO.Game.UI.Gumps
             );
         }
 
-        /// <summary>
-        /// Rebuilds the list grouped by spell level, with a heading and a slot count per group.
-        /// <para>
-        /// A flat list stops working around a dozen spells, and a 1st-level wizard already has 27.
-        /// Grouping by level is the right axis because level is what a caster is actually rationing:
-        /// the question at the table is "what can I still afford", not "what is this called".
-        /// </para>
-        /// </summary>
         protected override void UpdateContents()
         {
-            foreach (Control control in _spellControls)
+            foreach (Control control in _pageControls)
             {
                 control.Dispose();
             }
 
-            _spellControls.Clear();
+            _pageControls.Clear();
             _rows.Clear();
             _rows.AddRange(DnDSpellState.Spells);
 
-            _slotsLabel.Text = DescribeSlots();
-
-            int y = HEADER_HEIGHT;
-            int lastLevel = -1;
-
-            // Ordered by level so the groups come out contiguous; the server sends them in
-            // registration order, which is not that.
+            // Cantrips first, then by level - the order a caster thinks about them in. The server
+            // sends them in registration order, which is not that.
             _rows.Sort((a, b) => a.Level != b.Level ? a.Level.CompareTo(b.Level) : string.CompareOrdinal(a.Name, b.Name));
 
-            for (int i = 0; i < _rows.Count; ++i)
+            _slotsLabel.Text = DescribeSlots();
+
+            int pages = System.Math.Max(1, (_rows.Count + PER_PAGE - 1) / PER_PAGE);
+
+            if (_page >= pages)
             {
-                DnDSpellEntry spell = _rows[i];
-
-                if (spell.Level != lastLevel)
-                {
-                    lastLevel = spell.Level;
-
-                    var heading = new Label(
-                        DescribeLevel(spell.Level), true, DnDStyle.HueHeading, Width - 24, 1, FontStyle.BlackBorder)
-                    {
-                        X = 12,
-                        Y = y + 2
-                    };
-
-                    Add(heading);
-                    _spellControls.Add(heading);
-
-                    var rule = new Line(12, y + 16, Width - 24, 1, DnDStyle.RuleColour);
-
-                    Add(rule);
-                    _spellControls.Add(rule);
-
-                    y += 20;
-                }
-
-                var button = new NiceButton
-                (
-                    16,
-                    y,
-                    Width - 32,
-                    ROW_HEIGHT - 2,
-                    ButtonAction.Activate,
-                    spell.Name
-                )
-                {
-                    ButtonParameter = SPELL_BUTTON_BASE_ID + i,
-                    IsSelectable = false
-                };
-
-                // A spell with no slot left to pay for it is shown as unaffordable rather than
-                // hidden - knowing it exists and is spent is the useful thing.
-                if (!spell.IsCantrip && DnDSpellState.SlotsAvailable[spell.Level - 1] <= 0)
-                {
-                    button.TextLabel.Hue = DnDStyle.HueMuted;
-                }
-
-                Add(button);
-                _spellControls.Add(button);
-
-                y += ROW_HEIGHT;
+                _page = pages - 1;
             }
 
-            Height = y + FOOTER_HEIGHT;
-            _background.Height = Height;
-            WantUpdateSize = true;
-        }
+            _pageLabel.Text = string.Format("Page {0} of {1}", _page + 1, pages);
 
-        private static string DescribeLevel(int level)
-        {
-            if (level == 0)
+            int first = _page * PER_PAGE;
+
+            for (int slot = 0; slot < PER_PAGE; ++slot)
             {
-                return "Cantrips";
+                int index = first + slot;
+
+                if (index >= _rows.Count)
+                {
+                    break;
+                }
+
+                AddSpellEntry(_rows[index], index, slot);
             }
-
-            int available = DnDSpellState.SlotsAvailable[level - 1];
-            int max = DnDSpellState.SlotsMax[level - 1];
-
-            return string.Format("Level {0}   ({1}/{2} slots)", level, available, max);
         }
 
-        private static string FormatSpell(DnDSpellEntry spell)
+        private void AddSpellEntry(DnDSpellEntry spell, int index, int slot)
         {
-            return spell.IsCantrip
-                ? string.Format("{0}  (cantrip)", spell.Name)
-                : string.Format("{0}  (lvl {1})", spell.Name, spell.Level);
+            // The first half of the slots fill the left page, the rest the right.
+            bool rightPage = slot >= ROWS * COLUMNS;
+            int pageSlot = rightPage ? slot - (ROWS * COLUMNS) : slot;
+
+            int column = pageSlot % COLUMNS;
+            int row = pageSlot / COLUMNS;
+
+            int pageX = rightPage ? (WIDTH / 2) + 14 : DnDStyle.Margin;
+            int x = pageX + (column * 108);
+            int y = PAGE_TOP + (row * 52);
+
+            // A spell with no slot left to pay for it is greyed rather than hidden - knowing it
+            // exists and is spent is the useful thing.
+            bool affordable = spell.IsCantrip || DnDSpellState.SlotsAvailable[spell.Level - 1] > 0;
+
+            ushort icon = GetIcon(spell);
+
+            var button = new Button(SPELL_BUTTON_BASE_ID + index, icon, icon)
+            {
+                X = x,
+                Y = y,
+                ButtonAction = ButtonAction.Activate
+            };
+
+            Add(button);
+            _pageControls.Add(button);
+
+            var name = new Label(
+                spell.Name, true, affordable ? DnDStyle.HueBody : DnDStyle.HueMuted, 104, 1, FontStyle.BlackBorder)
+            {
+                X = x,
+                Y = y + 40
+            };
+
+            Add(name);
+            _pageControls.Add(name);
+        }
+
+        /// <summary>
+        /// Spread across UO's 64 magery icons by school, so a school's spells look like a set.
+        /// Spells within a school cycle through eight icons - which repeats on a long list, but
+        /// keeps neighbours on a page distinguishable, which is what the icon is for.
+        /// </summary>
+        private static ushort GetIcon(DnDSpellEntry spell)
+        {
+            int school = (int)spell.School;
+
+            return (ushort)(ICON_BASE + (school * ICONS_PER_SCHOOL) + (spell.Id % ICONS_PER_SCHOOL));
         }
 
         private static string DescribeSlots()
@@ -213,7 +262,8 @@ namespace ClassicUO.Game.UI.Gumps
 
             for (int level = 1; level <= highest; ++level)
             {
-                builder.AppendFormat(" {0}:{1}/{2}", level, DnDSpellState.SlotsAvailable[level - 1], DnDSpellState.SlotsMax[level - 1]);
+                builder.AppendFormat(
+                    " {0}:{1}/{2}", level, DnDSpellState.SlotsAvailable[level - 1], DnDSpellState.SlotsMax[level - 1]);
             }
 
             return builder.ToString();
@@ -221,6 +271,28 @@ namespace ClassicUO.Game.UI.Gumps
 
         public override void OnButtonClick(int buttonID)
         {
+            if (buttonID == BUTTON_PREVIOUS)
+            {
+                if (_page > 0)
+                {
+                    --_page;
+                    RequestUpdateContents();
+                }
+
+                return;
+            }
+
+            if (buttonID == BUTTON_NEXT)
+            {
+                if ((_page + 1) * PER_PAGE < _rows.Count)
+                {
+                    ++_page;
+                    RequestUpdateContents();
+                }
+
+                return;
+            }
+
             int index = buttonID - SPELL_BUTTON_BASE_ID;
 
             if (index < 0 || index >= _rows.Count)
@@ -232,9 +304,9 @@ namespace ClassicUO.Game.UI.Gumps
         }
 
         /// <summary>
-        /// Puts the cursor into targeting mode. The player picks any mobile, including themselves -
-        /// which target types a given spell actually accepts is the server's call, and it will say
-        /// so if the choice was wrong.
+        /// Puts the cursor into targeting mode. The player picks any mobile - or a spot on the
+        /// ground, for spells placed on a point - and which of those a given spell accepts is the
+        /// server's call, which it will say if the choice was wrong.
         /// </summary>
         private void BeginTargeting(DnDSpellEntry spell)
         {
@@ -250,6 +322,7 @@ namespace ClassicUO.Game.UI.Gumps
                     }
 
                     uint serial = 0;
+
                     if (target is Entity ent)
                     {
                         serial = ent.Serial;
