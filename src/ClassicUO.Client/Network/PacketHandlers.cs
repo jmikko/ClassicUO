@@ -4,6 +4,7 @@ using ClassicUO.Assets;
 using ClassicUO.Configuration;
 using ClassicUO.Game;
 using ClassicUO.Game.Data;
+using ClassicUO.Game.DnD;
 using ClassicUO.Game.GameObjects;
 using ClassicUO.Game.Managers;
 using ClassicUO.Game.Scenes;
@@ -4726,6 +4727,94 @@ namespace ClassicUO.Network
                     type = p.ReadUInt16BE();
 
                     break;
+
+                //===========================================================================================
+                //===========================================================================================
+                case 0x40: // D&D 5.5e vertical slice: prompt for post-creation ability score/class setup
+                    UIManager.Add(new DnDCharacterSetupGump(world));
+
+                    break;
+
+                //===========================================================================================
+                //===========================================================================================
+                case 0x41: // D&D 5.5e vertical slice: character sheet stat sync
+                    {
+                        int dndStr = p.ReadUInt8();
+                        int dndDex = p.ReadUInt8();
+                        int dndCon = p.ReadUInt8();
+                        int dndInt = p.ReadUInt8();
+                        int dndWis = p.ReadUInt8();
+                        int dndCha = p.ReadUInt8();
+                        int dndClassId = p.ReadUInt8();
+                        int dndLevel = p.ReadUInt8();
+                        int dndProficiencyBonus = p.ReadUInt8();
+                        int dndArmorClass = p.ReadUInt8();
+                        int dndHitsCurrent = p.ReadInt16BE();
+                        int dndHitsMax = p.ReadInt16BE();
+
+                        DnDState.ApplySync
+                        (
+                            dndStr, dndDex, dndCon, dndInt, dndWis, dndCha,
+                            dndClassId, dndLevel, dndProficiencyBonus, dndArmorClass,
+                            dndHitsCurrent, dndHitsMax
+                        );
+
+                        if (UIManager.GetGump<DnDCharacterSheetGump>() == null)
+                        {
+                            UIManager.Add(new DnDCharacterSheetGump(world) { X = 20, Y = 200 });
+                        }
+
+                        break;
+                    }
+
+                case 0x42: // D&D: castable spells and remaining spell slots
+                    {
+                        int slotLevels = p.ReadUInt8();
+
+                        var slotsAvailable = new int[slotLevels];
+                        var slotsMax = new int[slotLevels];
+
+                        for (int i = 0; i < slotLevels; ++i)
+                        {
+                            slotsAvailable[i] = p.ReadUInt8();
+                            slotsMax[i] = p.ReadUInt8();
+                        }
+
+                        int spellCount = p.ReadUInt8();
+
+                        var spells = new List<DnDSpellEntry>(spellCount);
+
+                        for (int i = 0; i < spellCount; ++i)
+                        {
+                            int spellId = p.ReadUInt16BE();
+                            int spellLevel = p.ReadUInt8();
+                            var school = (DnDSpellSchool)p.ReadUInt8();
+                            string spellName = p.ReadASCII();
+
+                            spells.Add(new DnDSpellEntry(spellId, spellLevel, school, spellName));
+                        }
+
+                        DnDSpellState.ApplySpellList(spells, slotsAvailable, slotsMax);
+
+                        // Only casters get a spellbook; a Fighter is sent an empty list and should
+                        // not have an empty window appear.
+                        if (DnDSpellState.HasAnySpells && UIManager.GetGump<DnDSpellbookGump>() == null)
+                        {
+                            UIManager.Add(new DnDSpellbookGump(world) { X = 20, Y = 320 });
+                        }
+
+                        break;
+                    }
+
+                case 0x43: // D&D: the outcome of a cast we requested
+                    {
+                        int castSpellId = p.ReadUInt16BE();
+                        var castResult = (DnDCastResult)p.ReadUInt8();
+
+                        DnDSpellState.ApplyCastResult(castSpellId, castResult);
+
+                        break;
+                    }
 
                 default:
                     Log.Warn($"Unhandled 0xBF - sub: {cmd.ToHex()}");

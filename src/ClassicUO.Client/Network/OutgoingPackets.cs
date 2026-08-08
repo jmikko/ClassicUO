@@ -2953,6 +2953,108 @@ namespace ClassicUO.Network
             writer.Dispose();
         }
 
+        /// <summary>
+        /// D&amp;D 5.5e vertical slice: sends the player's chosen ability scores and class index back
+        /// to the server in response to DnDCreationPrompt (0xBF/0x40). Encoded (0xD7) subcommand
+        /// 0x40. Payload is seven ServUO EncodedReader-compatible int32 fields (each preceded by a
+        /// 0x00 type tag byte, matching EncodedReader.ReadInt32 on the server), in order: str, dex,
+        /// con, int, wis, cha, classIndex.
+        /// </summary>
+        public static void Send_DnDCharacterSetup
+        (
+            this NetClient socket, World world,
+            int str, int dex, int con, int intl, int wis, int cha, int classIndex, int speciesIndex
+        )
+        {
+            const byte ID = 0xD7;
+
+            int length = socket.PacketsTable.GetPacketLength(ID);
+
+            var writer = new StackDataWriter(length < 0 ? 64 : length);
+
+            writer.WriteUInt8(ID);
+
+            if (length < 0)
+            {
+                writer.WriteZero(2);
+            }
+
+            writer.WriteUInt32BE(world.Player.Serial);
+            writer.WriteUInt16BE(0x40);
+
+            // speciesIndex is a server-side Race.RaceIndex value (see
+            // DnDCharacterSetupEventArgs.SpeciesIndex on the server for why), not a sequential
+            // position - DnDCharacterSetupGump.cs's _speciesRaceIndex table must match exactly.
+            int[] values = { str, dex, con, intl, wis, cha, classIndex, speciesIndex };
+
+            for (int i = 0; i < values.Length; ++i)
+            {
+                writer.WriteUInt8(0); // EncodedReader.ReadInt32 type tag
+                writer.WriteInt32BE(values[i]);
+            }
+
+            if (length < 0)
+            {
+                writer.Seek(1, SeekOrigin.Begin);
+                writer.WriteUInt16BE((ushort) writer.BytesWritten);
+            }
+            else
+            {
+                writer.WriteZero(length - writer.BytesWritten);
+            }
+
+            socket.Send(writer.BufferWritten);
+            writer.Dispose();
+        }
+
+        /// <summary>
+        /// D&amp;D: asks the server to cast a spell. Encoded (0xD7) subcommand 0x41, carrying two
+        /// ServUO EncodedReader-compatible int32 fields (each preceded by a 0x00 type tag):
+        /// the spell id from DnDSpellList, and the target serial - 0 to cast on yourself.
+        /// <para>
+        /// This is a request, not an assertion. The server decides whether the spell is on the
+        /// class list, whether a slot is free and whether the target is legal, and answers with
+        /// DnDCastResult (0xBF/0x43).
+        /// </para>
+        /// </summary>
+        public static void Send_DnDCastRequest(this NetClient socket, World world, int spellId, uint targetSerial)
+        {
+            const byte ID = 0xD7;
+
+            int length = socket.PacketsTable.GetPacketLength(ID);
+
+            var writer = new StackDataWriter(length < 0 ? 32 : length);
+
+            writer.WriteUInt8(ID);
+
+            if (length < 0)
+            {
+                writer.WriteZero(2);
+            }
+
+            writer.WriteUInt32BE(world.Player.Serial);
+            writer.WriteUInt16BE(0x41);
+
+            writer.WriteUInt8(0); // EncodedReader.ReadInt32 type tag
+            writer.WriteInt32BE(spellId);
+
+            writer.WriteUInt8(0);
+            writer.WriteInt32BE((int)targetSerial);
+
+            if (length < 0)
+            {
+                writer.Seek(1, SeekOrigin.Begin);
+                writer.WriteUInt16BE((ushort) writer.BytesWritten);
+            }
+            else
+            {
+                writer.WriteZero(length - writer.BytesWritten);
+            }
+
+            socket.Send(writer.BufferWritten);
+            writer.Dispose();
+        }
+
         public static void Send_QuestMenuRequest(this NetClient socket, World world)
         {
             const byte ID = 0xD7;
