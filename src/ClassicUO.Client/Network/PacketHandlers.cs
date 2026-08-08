@@ -4816,6 +4816,43 @@ namespace ClassicUO.Network
                         break;
                     }
 
+                case 0x44: // D&D: level up prompt
+                    {
+                        int pendingLevels = p.ReadUInt8();
+                        int pendingASI = p.ReadUInt8();
+                        int pendingSpellsKnown = p.ReadUInt8();
+
+                        int classesCount = p.ReadInt16BE();
+                        var classes = new List<(string name, string parent)>(classesCount);
+                        for (int i = 0; i < classesCount; ++i)
+                        {
+                            classes.Add((p.ReadASCII(), p.ReadASCII()));
+                        }
+
+                        int featsCount = p.ReadInt16BE();
+                        var feats = new List<string>(featsCount);
+                        for (int i = 0; i < featsCount; ++i)
+                        {
+                            feats.Add(p.ReadASCII());
+                        }
+
+                        int spellCount = p.ReadInt16BE();
+                        var spells = new List<DnDSpellEntry>(spellCount);
+
+                        for (int i = 0; i < spellCount; ++i)
+                        {
+                            int spellId = p.ReadUInt16BE();
+                            int spellLevel = p.ReadUInt8();
+                            var school = (DnDSpellSchool)p.ReadUInt8();
+                            string spellName = p.ReadASCII();
+
+                            spells.Add(new DnDSpellEntry(spellId, spellLevel, school, spellName));
+                        }
+
+                        UIManager.Add(new DnDLevelUpGump(world, pendingLevels, pendingASI, pendingSpellsKnown, classes, feats, spells));
+                        break;
+                    }
+
                 default:
                     Log.Warn($"Unhandled 0xBF - sub: {cmd.ToHex()}");
 

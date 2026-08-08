@@ -188,14 +188,18 @@ namespace ClassicUO.Game.UI.Gumps
             (
                 target =>
                 {
-                    var mobile = target as Mobile;
-
-                    if (mobile == null)
+                    if (target == null)
                     {
                         return;
                     }
 
-                    NetClient.Socket.Send_DnDCastRequest(World, spellId, mobile.Serial);
+                    uint serial = 0;
+                    if (target is Entity ent)
+                    {
+                        serial = ent.Serial;
+                    }
+
+                    NetClient.Socket.Send_DnDCastRequest(World, spellId, serial, target.X, target.Y, target.Z);
                 },
                 0,
                 TargetType.Neutral

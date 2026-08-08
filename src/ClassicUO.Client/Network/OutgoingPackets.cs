@@ -3007,6 +3007,61 @@ namespace ClassicUO.Network
             writer.Dispose();
         }
 
+        public static void Send_DnDLevelUpSubmit
+        (
+            this NetClient socket, World world,
+            string chosenClass, string chosenFeat,
+            int[] abilityIncreases, List<int> spellIds
+        )
+        {
+            const byte ID = 0xD7;
+
+            int length = socket.PacketsTable.GetPacketLength(ID);
+
+            var writer = new StackDataWriter(length < 0 ? 1024 : length);
+
+            writer.WriteUInt8(ID);
+
+            if (length < 0)
+            {
+                writer.WriteZero(2);
+            }
+
+            writer.WriteUInt32BE(world.Player.Serial);
+            writer.WriteUInt16BE(0x45);
+
+            writer.WriteASCII(chosenClass ?? string.Empty);
+            writer.WriteASCII(chosenFeat ?? string.Empty);
+
+            for (int i = 0; i < 6; i++)
+            {
+                writer.WriteUInt8(0);
+                writer.WriteInt32BE(abilityIncreases[i]);
+            }
+
+            writer.WriteUInt8(0);
+            writer.WriteInt32BE(spellIds.Count);
+
+            for (int i = 0; i < spellIds.Count; i++)
+            {
+                writer.WriteUInt8(0);
+                writer.WriteInt32BE(spellIds[i]);
+            }
+
+            if (length < 0)
+            {
+                writer.Seek(1, SeekOrigin.Begin);
+                writer.WriteUInt16BE((ushort)writer.BytesWritten);
+            }
+            else
+            {
+                writer.WriteZero(length - writer.BytesWritten);
+            }
+
+            socket.Send(writer.BufferWritten);
+            writer.Dispose();
+        }
+
         /// <summary>
         /// D&amp;D: asks the server to cast a spell. Encoded (0xD7) subcommand 0x41, carrying two
         /// ServUO EncodedReader-compatible int32 fields (each preceded by a 0x00 type tag):
@@ -3017,7 +3072,7 @@ namespace ClassicUO.Network
         /// DnDCastResult (0xBF/0x43).
         /// </para>
         /// </summary>
-        public static void Send_DnDCastRequest(this NetClient socket, World world, int spellId, uint targetSerial)
+        public static void Send_DnDCastRequest(this NetClient socket, World world, int spellId, uint targetSerial, ushort x, ushort y, sbyte z)
         {
             const byte ID = 0xD7;
 
@@ -3040,6 +3095,11 @@ namespace ClassicUO.Network
 
             writer.WriteUInt8(0);
             writer.WriteInt32BE((int)targetSerial);
+            
+            writer.WriteUInt8(3); // EncodedReader.ReadPoint3D type tag
+            writer.WriteUInt16BE(x);
+            writer.WriteUInt16BE(y);
+            writer.WriteUInt8((byte)z);
 
             if (length < 0)
             {
