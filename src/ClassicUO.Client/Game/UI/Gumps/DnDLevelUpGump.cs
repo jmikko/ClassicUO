@@ -61,7 +61,15 @@ namespace ClassicUO.Game.UI.Gumps
             Height = 700;
 
             Add(new ResizePic(DnDStyle.BackgroundGraphic) { Width = Width, Height = Height });
-            Add(new Label("Advancement", true, DnDStyle.HueTitle, Width - 20, 1, FontStyle.BlackBorder) { X = DnDStyle.Margin, Y = 10 });
+
+            // The count belongs in the title because this window reopens after every accepted
+            // level. Two identical windows in a row read as one window that ignored you; a window
+            // that says "3 levels to spend" and then "2 levels to spend" reads as progress.
+            string title = _pendingLevels > 1
+                ? $"Advancement - {_pendingLevels} levels to spend"
+                : "Advancement";
+
+            Add(new Label(title, true, DnDStyle.HueTitle, Width - 20, 1, FontStyle.BlackBorder) { X = DnDStyle.Margin, Y = 10 });
             Add(new Line(DnDStyle.Margin, 32, Width - (DnDStyle.Margin * 2), 1, DnDStyle.RuleColour));
 
             int currentY = 40;

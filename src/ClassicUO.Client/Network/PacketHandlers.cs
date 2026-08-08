@@ -4849,6 +4849,12 @@ namespace ClassicUO.Network
                             spells.Add(new DnDSpellEntry(spellId, spellLevel, school, spellName));
                         }
 
+                        // The server resends this prompt after every accepted level, for as long as
+                        // anything is still pending. Without closing the previous one first, the
+                        // windows stack up perfectly aligned and the top one looks like the old one
+                        // with its selection mysteriously cleared.
+                        UIManager.GetGump<DnDLevelUpGump>()?.Dispose();
+
                         UIManager.Add(new DnDLevelUpGump(world, pendingLevels, pendingASI, pendingSpellsKnown, classes, feats, spells));
                         break;
                     }
