@@ -59,14 +59,15 @@ namespace ClassicUO.Game.UI.Gumps
             Width = 600;
             Height = 700;
 
-            Add(new ResizePic(0x0A28) { Width = Width, Height = Height });
-            Add(new Label("D&D Level Up Choices", true, 0x0035, Width - 20, 0xFF, FontStyle.BlackBorder) { X = 14, Y = 14 });
+            Add(new ResizePic(DnDStyle.BackgroundGraphic) { Width = Width, Height = Height });
+            Add(new Label("Advancement", true, DnDStyle.HueTitle, Width - 20, 1, FontStyle.BlackBorder) { X = DnDStyle.Margin, Y = 10 });
+            Add(new Line(DnDStyle.Margin, 32, Width - (DnDStyle.Margin * 2), 1, DnDStyle.RuleColour));
 
             int currentY = 40;
 
             if (_pendingLevels > 0)
             {
-                Add(new Label($"Class / Subclass (Pending Levels: {_pendingLevels})", true, 0x0481, Width - 20, 0xFF, FontStyle.BlackBorder) { X = 14, Y = currentY });
+                Add(new Label($"Class / Subclass (Pending Levels: {_pendingLevels})", true, DnDStyle.HueHeading, Width - 20, 1, FontStyle.BlackBorder) { X = DnDStyle.Margin, Y = currentY });
                 currentY += 24;
 
                 int row = 0;
@@ -92,20 +93,20 @@ namespace ClassicUO.Game.UI.Gumps
 
             if (_pendingASI > 0)
             {
-                _asiPointsLabel = new Label($"Ability Score Increases (Pending: {_pendingASI}) - Choose ASI OR Feats", true, 0x0481, Width - 20, 0xFF, FontStyle.BlackBorder) { X = 14, Y = currentY };
+                _asiPointsLabel = new Label($"Ability Score Increases (Pending: {_pendingASI}) - Choose ASI OR Feats", true, DnDStyle.HueHeading, Width - 20, 1, FontStyle.BlackBorder) { X = DnDStyle.Margin, Y = currentY };
                 Add(_asiPointsLabel);
                 currentY += 24;
 
                 int asiStartY = currentY;
                 for (int i = 0; i < 6; i++)
                 {
-                    Add(new Label(_scoreNames[i], true, 0x03E3, 100, 0xFF, FontStyle.BlackBorder) { X = 14, Y = currentY });
+                    Add(new Label(_scoreNames[i], true, DnDStyle.HueBody, 100, 1, FontStyle.BlackBorder) { X = DnDStyle.Margin, Y = currentY });
                     
                     NiceButton decBtn = new NiceButton(80, currentY, 20, 20, ButtonAction.Activate, "-", 0);
                     decBtn.ButtonParameter = BUTTON_ASI_DEC_BASE + i;
                     Add(decBtn);
 
-                    _abilityIncreaseLabels[i] = new Label("0", true, 0xFFFF, 20, 0xFF, FontStyle.BlackBorder) { X = 110, Y = currentY };
+                    _abilityIncreaseLabels[i] = new Label("0", true, DnDStyle.HueGood, 20, 1, FontStyle.BlackBorder) { X = 110, Y = currentY };
                     Add(_abilityIncreaseLabels[i]);
 
                     NiceButton incBtn = new NiceButton(130, currentY, 20, 20, ButtonAction.Activate, "+", 0);
@@ -135,7 +136,7 @@ namespace ClassicUO.Game.UI.Gumps
 
             if (_pendingSpellsKnown > 0)
             {
-                _spellsPointsLabel = new Label($"Spells Known (Pending: {_pendingSpellsKnown})", true, 0x0481, Width - 20, 0xFF, FontStyle.BlackBorder) { X = 14, Y = currentY };
+                _spellsPointsLabel = new Label($"Spells Known (Pending: {_pendingSpellsKnown})", true, DnDStyle.HueHeading, Width - 20, 1, FontStyle.BlackBorder) { X = DnDStyle.Margin, Y = currentY };
                 Add(_spellsPointsLabel);
                 currentY += 24;
 

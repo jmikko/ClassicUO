@@ -25,7 +25,7 @@ namespace ClassicUO.Game.UI.Gumps
     {
         private const int SPELL_BUTTON_BASE_ID = 100;
         private const int ROW_HEIGHT = 22;
-        private const int HEADER_HEIGHT = 52;
+        private const int HEADER_HEIGHT = 60;
         private const int FOOTER_HEIGHT = 14;
 
         private readonly List<DnDSpellEntry> _rows = new List<DnDSpellEntry>();
@@ -43,15 +43,16 @@ namespace ClassicUO.Game.UI.Gumps
             Width = 240;
             Height = HEADER_HEIGHT + FOOTER_HEIGHT;
 
-            _background = new ResizePic(0x0A28) { Width = Width, Height = Height };
+            _background = new ResizePic(DnDStyle.BackgroundGraphic) { Width = Width, Height = Height };
             Add(_background);
 
-            Add(new Label("Spellbook", true, 0x0035, Width - 20, 0xFF, FontStyle.BlackBorder) { X = 12, Y = 10 });
+            Add(new Label("Spellbook", true, DnDStyle.HueTitle, Width - 20, 1, FontStyle.BlackBorder) { X = DnDStyle.Margin, Y = 10 });
+            Add(new Line(DnDStyle.Margin, 32, Width - (DnDStyle.Margin * 2), 1, DnDStyle.RuleColour));
 
-            _slotsLabel = new Label(string.Empty, true, 0x0481, Width - 20, 0xFF, FontStyle.BlackBorder)
+            _slotsLabel = new Label(string.Empty, true, DnDStyle.HueMuted, Width - 20, 1, FontStyle.BlackBorder)
             {
-                X = 12,
-                Y = 30
+                X = DnDStyle.Margin,
+                Y = 38
             };
 
             Add(_slotsLabel);
@@ -93,6 +94,14 @@ namespace ClassicUO.Game.UI.Gumps
             );
         }
 
+        /// <summary>
+        /// Rebuilds the list grouped by spell level, with a heading and a slot count per group.
+        /// <para>
+        /// A flat list stops working around a dozen spells, and a 1st-level wizard already has 27.
+        /// Grouping by level is the right axis because level is what a caster is actually rationing:
+        /// the question at the table is "what can I still afford", not "what is this called".
+        /// </para>
+        /// </summary>
         protected override void UpdateContents()
         {
             foreach (Control control in _spellControls)
@@ -107,24 +116,58 @@ namespace ClassicUO.Game.UI.Gumps
             _slotsLabel.Text = DescribeSlots();
 
             int y = HEADER_HEIGHT;
+            int lastLevel = -1;
+
+            // Ordered by level so the groups come out contiguous; the server sends them in
+            // registration order, which is not that.
+            _rows.Sort((a, b) => a.Level != b.Level ? a.Level.CompareTo(b.Level) : string.CompareOrdinal(a.Name, b.Name));
 
             for (int i = 0; i < _rows.Count; ++i)
             {
                 DnDSpellEntry spell = _rows[i];
 
+                if (spell.Level != lastLevel)
+                {
+                    lastLevel = spell.Level;
+
+                    var heading = new Label(
+                        DescribeLevel(spell.Level), true, DnDStyle.HueHeading, Width - 24, 1, FontStyle.BlackBorder)
+                    {
+                        X = 12,
+                        Y = y + 2
+                    };
+
+                    Add(heading);
+                    _spellControls.Add(heading);
+
+                    var rule = new Line(12, y + 16, Width - 24, 1, DnDStyle.RuleColour);
+
+                    Add(rule);
+                    _spellControls.Add(rule);
+
+                    y += 20;
+                }
+
                 var button = new NiceButton
                 (
-                    12,
+                    16,
                     y,
-                    Width - 24,
+                    Width - 32,
                     ROW_HEIGHT - 2,
                     ButtonAction.Activate,
-                    FormatSpell(spell)
+                    spell.Name
                 )
                 {
                     ButtonParameter = SPELL_BUTTON_BASE_ID + i,
                     IsSelectable = false
                 };
+
+                // A spell with no slot left to pay for it is shown as unaffordable rather than
+                // hidden - knowing it exists and is spent is the useful thing.
+                if (!spell.IsCantrip && DnDSpellState.SlotsAvailable[spell.Level - 1] <= 0)
+                {
+                    button.TextLabel.Hue = DnDStyle.HueMuted;
+                }
 
                 Add(button);
                 _spellControls.Add(button);
@@ -135,6 +178,19 @@ namespace ClassicUO.Game.UI.Gumps
             Height = y + FOOTER_HEIGHT;
             _background.Height = Height;
             WantUpdateSize = true;
+        }
+
+        private static string DescribeLevel(int level)
+        {
+            if (level == 0)
+            {
+                return "Cantrips";
+            }
+
+            int available = DnDSpellState.SlotsAvailable[level - 1];
+            int max = DnDSpellState.SlotsMax[level - 1];
+
+            return string.Format("Level {0}   ({1}/{2} slots)", level, available, max);
         }
 
         private static string FormatSpell(DnDSpellEntry spell)

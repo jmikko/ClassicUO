@@ -2963,7 +2963,8 @@ namespace ClassicUO.Network
         public static void Send_DnDCharacterSetup
         (
             this NetClient socket, World world,
-            int str, int dex, int con, int intl, int wis, int cha, int classIndex, int speciesIndex
+            int str, int dex, int con, int intl, int wis, int cha, int classIndex, int speciesIndex,
+            System.Collections.Generic.IReadOnlyList<ClassicUO.Game.DnD.DnDSkill> skills = null
         )
         {
             const byte ID = 0xD7;
@@ -2991,6 +2992,20 @@ namespace ClassicUO.Network
             {
                 writer.WriteUInt8(0); // EncodedReader.ReadInt32 type tag
                 writer.WriteInt32BE(values[i]);
+            }
+
+            // Chosen skill proficiencies, appended after the original fields. The server reads
+            // these inside a try and falls back to the class defaults if the packet ends here, so
+            // the two sides can be updated independently.
+            int skillCount = skills == null ? 0 : skills.Count;
+
+            writer.WriteUInt8(0);
+            writer.WriteInt32BE(skillCount);
+
+            for (int i = 0; i < skillCount; ++i)
+            {
+                writer.WriteUInt8(0);
+                writer.WriteInt32BE((int)skills[i]);
             }
 
             if (length < 0)
