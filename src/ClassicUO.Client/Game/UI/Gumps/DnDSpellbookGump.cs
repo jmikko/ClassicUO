@@ -8,7 +8,9 @@ using ClassicUO.Game.GameObjects;
 using ClassicUO.Game.Managers;
 using ClassicUO.Game.UI.Controls;
 using ClassicUO.Network;
+using ClassicUO.Input;
 using ClassicUO.Renderer;
+using Microsoft.Xna.Framework.Graphics;
 
 namespace ClassicUO.Game.UI.Gumps
 {
@@ -31,21 +33,19 @@ namespace ClassicUO.Game.UI.Gumps
         private const int BUTTON_PREVIOUS = 1;
         private const int BUTTON_NEXT = 2;
 
-        private const int WIDTH = 480;
-        private const int HEIGHT = 380;
+        private const int WIDTH = 600;
+        private const int HEIGHT = 480;
 
-        private const int PAGE_TOP = 62;
+        private const int PAGE_TOP = 76;
         private const int ROWS = 5;
         private const int COLUMNS = 2;
 
         /// <summary>Two facing pages, each a grid of the same size.</summary>
         private const int PER_PAGE = ROWS * COLUMNS * 2;
 
-        // UO's magery spell icons: 64 consecutive gumps. Spells are spread across them by school so
-        // that a school's spells look like a set, without needing art of our own - art would have to
-        // ship with the client and be kept in step with it.
-        private const ushort ICON_BASE = 0x08C0;
-        private const int ICONS_PER_SCHOOL = 8;
+        // Which picture a spell gets is DnDSpellIcons' problem, not this gump's. It was decided here
+        // once, as a switch of 88 names over UO's 64 Magery icons with an arbitrary modulo for the
+        // rest; it now draws on every spell icon Ultima ships and accepts bespoke art besides.
 
         private readonly List<DnDSpellEntry> _rows = new List<DnDSpellEntry>();
         private readonly List<Control> _pageControls = new List<Control>();
@@ -100,17 +100,18 @@ namespace ClassicUO.Game.UI.Gumps
 
             Add(new Line(DnDStyle.Margin, y - 8, Width - (DnDStyle.Margin * 2), 1, DnDStyle.RuleColour));
 
-            // UO's own page-turn arrows, which anyone who has opened a book in this client knows.
+            // Circular arrows for previous page
             Add(
-                new Button(BUTTON_PREVIOUS, 0x08BB, 0x08BC)
+                new Button(BUTTON_PREVIOUS, 0x15E3, 0x15E7)
                 {
                     X = DnDStyle.Margin,
                     Y = y,
                     ButtonAction = ButtonAction.Activate
                 });
 
+            // Circular arrows for next page
             Add(
-                new Button(BUTTON_NEXT, 0x08BE, 0x08BF)
+                new Button(BUTTON_NEXT, 0x15E1, 0x15E5)
                 {
                     X = Width - DnDStyle.Margin - 22,
                     Y = y,
@@ -206,48 +207,72 @@ namespace ClassicUO.Game.UI.Gumps
             int column = pageSlot % COLUMNS;
             int row = pageSlot / COLUMNS;
 
-            int pageX = rightPage ? (WIDTH / 2) + 14 : DnDStyle.Margin;
-            int x = pageX + (column * 108);
-            int y = PAGE_TOP + (row * 52);
+            int pageX = rightPage ? (WIDTH / 2) + 20 : DnDStyle.Margin + 10;
+            int x = pageX + (column * 130);
+            int y = PAGE_TOP + (row * 68);
 
             // A spell with no slot left to pay for it is greyed rather than hidden - knowing it
             // exists and is spent is the useful thing.
             bool affordable = spell.IsCantrip || DnDSpellState.SlotsAvailable[spell.Level - 1] > 0;
 
-            ushort icon = GetIcon(spell);
+            // Bespoke art if this spell has any, otherwise the Ultima gump it maps to. A PNG is
+            // drawn as a picture with a hit box over it rather than as a Button, because Button
+            // takes a gump id and a texture loaded from disk does not have one.
+            Texture2D custom = DnDSpellIcons.GetCustomIcon(spell.Name);
 
-            var button = new Button(SPELL_BUTTON_BASE_ID + index, icon, icon)
+            if (custom != null)
             {
-                X = x,
-                Y = y,
-                ButtonAction = ButtonAction.Activate
-            };
+                var picture = new TexturePic(custom, 44, 44)
+                {
+                    X = x + 24,
+                    Y = y,
+                    Hue = affordable ? (ushort)0 : DnDStyle.HueMuted
+                };
 
-            Add(button);
-            _pageControls.Add(button);
+                Add(picture);
+                _pageControls.Add(picture);
+
+                int buttonId = SPELL_BUTTON_BASE_ID + index;
+
+                var hit = new HitBox(x + 24, y, 44, 44, spell.Name, 0f);
+
+                hit.MouseUp += (sender, args) =>
+                {
+                    if (args.Button == MouseButtonType.Left)
+                    {
+                        OnButtonClick(buttonId);
+                    }
+                };
+
+                Add(hit);
+                _pageControls.Add(hit);
+            }
+            else
+            {
+                ushort icon = DnDSpellIcons.GetGumpIcon(spell);
+
+                var button = new Button(SPELL_BUTTON_BASE_ID + index, icon, icon)
+                {
+                    X = x + 24, // Center the 44x44 icon over the text
+                    Y = y,
+                    ButtonAction = ButtonAction.Activate
+                };
+
+                Add(button);
+                _pageControls.Add(button);
+            }
 
             var name = new Label(
                 spell.Name, true, affordable ? DnDStyle.HueBody : DnDStyle.HueMuted, 104, 1, FontStyle.BlackBorder)
             {
                 X = x,
-                Y = y + 40
+                Y = y + 46 // Placed safely below the 44px icon
             };
 
             Add(name);
             _pageControls.Add(name);
         }
 
-        /// <summary>
-        /// Spread across UO's 64 magery icons by school, so a school's spells look like a set.
-        /// Spells within a school cycle through eight icons - which repeats on a long list, but
-        /// keeps neighbours on a page distinguishable, which is what the icon is for.
-        /// </summary>
-        private static ushort GetIcon(DnDSpellEntry spell)
-        {
-            int school = (int)spell.School;
-
-            return (ushort)(ICON_BASE + (school * ICONS_PER_SCHOOL) + (spell.Id % ICONS_PER_SCHOOL));
-        }
 
         private static string DescribeSlots()
         {
