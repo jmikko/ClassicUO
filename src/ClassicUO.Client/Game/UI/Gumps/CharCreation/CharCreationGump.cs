@@ -31,81 +31,31 @@ namespace ClassicUO.Game.UI.Gumps.CharCreation
 
         internal static int _skillsCount => Client.Game.UO.Version >= ClientVersion.CV_70160 ? 4 : 3;
 
+        /// <summary>
+        /// Appearance is finished, so the character is created immediately.
+        /// <para>
+        /// Ultima's remaining creation steps - profession, trade skills, starting city - have no
+        /// D&amp;D meaning and are gone. A profession is a class, trade skills are the class's own
+        /// skill choices, and both are picked on the D&amp;D setup screen the server raises once the
+        /// character exists. The city list was already ignored: the server picks the start location
+        /// itself.
+        /// </para>
+        /// <para>
+        /// The stats and skills left on the character here are whatever the appearance step
+        /// defaulted to. That is fine - the server overwrites the stats and never reads UO skills,
+        /// because D&amp;D combat resolves on ability scores instead.
+        /// </para>
+        /// </summary>
         public void SetCharacter(PlayerMobile character)
         {
             _character = character;
-            SetStep(CharCreationStep.ChooseProfession);
+
+            CreateCharacter(profession: 0);
         }
 
-        public void SetAttributes(bool force = false)
-        {
-            SetStep(_selectedProfession.DescriptionIndex >= 0 || force ? CharCreationStep.ChooseCity : CharCreationStep.ChooseTrade);
-        }
-
-        public void SetCity(int cityIndex)
-        {
-            _cityIndex = cityIndex;
-        }
-
-        public void SetProfession(ProfessionInfo info)
-        {
-            for (int i = 0; i < _skillsCount; i++)
-            {
-                int skillIndex = info.SkillDefVal[i, 0];
-
-                if (skillIndex >= _character.Skills.Length)
-                {
-                    continue;
-                }
-
-                if ((World.ClientFeatures.Flags & CharacterListFlags.CLF_SAMURAI_NINJA) == 0 && (skillIndex == 52 || skillIndex == 53))
-                {
-                    // reset skills if needed
-                    for (int k = 0; k < i; k++)
-                    {
-                        Skill skill = _character.Skills[info.SkillDefVal[k, 0]];
-                        skill.ValueFixed = 0;
-                        skill.BaseFixed = 0;
-                        skill.CapFixed = 0;
-                        skill.Lock = Lock.Locked;
-                    }
-
-                    MessageBoxGump messageBox = new MessageBoxGump
-                    (
-                        World,
-                        400,
-                        300,
-                        Client.Game.UO.FileManager.Clilocs.GetString(1063016),
-                        null,
-                        true
-                    )
-                    {
-                        X = 470 / 2 - 400 / 2 + 100,
-                        Y = 372 / 2 - 300 / 2 + 20,
-                        CanMove = false
-                    };
-
-                    UIManager.Add(messageBox);
-
-                    return;
-                }
-
-                Skill skill2 = _character.Skills[skillIndex];
-                skill2.ValueFixed = (ushort) info.SkillDefVal[i, 1];
-                skill2.BaseFixed = 0;
-                skill2.CapFixed = 0;
-                skill2.Lock = Lock.Locked;
-            }
-
-            _selectedProfession = info;
-            _character.Strength = (ushort) _selectedProfession.StatsVal[0];
-            _character.Intelligence = (ushort) _selectedProfession.StatsVal[1];
-            _character.Dexterity = (ushort) _selectedProfession.StatsVal[2];
-
-            SetAttributes();
-
-            SetStep(_selectedProfession.DescriptionIndex > 0 ? CharCreationStep.ChooseCity : CharCreationStep.ChooseTrade);
-        }
+        // SetAttributes, SetCity, and SetProfession went with the screens that called them.
+        // Ultima professions set UO stats and trade skills, neither of which D&D combat reads,
+        // and the city index was already ignored - the server picks the start location itself.
 
         public void CreateCharacter(byte profession)
         {
@@ -141,63 +91,15 @@ namespace ClassicUO.Game.UI.Gumps.CharCreation
         {
             _currentStep = step;
 
-            switch (step)
-            {
-                default:
-                case CharCreationStep.Appearence:
-                    ChangePage(1);
-
-                    break;
-
-                case CharCreationStep.ChooseProfession:
-                    Control existing = Children.FirstOrDefault(page => page.Page == 2);
-
-                    if (existing != null)
-                    {
-                        Remove(existing);
-                    }
-
-                    Add(new CreateCharProfessionGump(World), 2);
-
-                    ChangePage(2);
-
-                    break;
-
-                case CharCreationStep.ChooseTrade:
-                    existing = Children.FirstOrDefault(page => page.Page == 3);
-
-                    if (existing != null)
-                    {
-                        Remove(existing);
-                    }
-
-                    Add(new CreateCharTradeGump(World, _character, _selectedProfession), 3);
-                    ChangePage(3);
-
-                    break;
-
-                case CharCreationStep.ChooseCity:
-                    existing = Children.FirstOrDefault(page => page.Page == 4);
-
-                    if (existing != null)
-                    {
-                        Remove(existing);
-                    }
-
-                    Add(new CreateCharSelectionCityGump(World, (byte) _selectedProfession.DescriptionIndex, _loginScene), 4);
-
-                    ChangePage(4);
-
-                    break;
-            }
+            // Appearance is the only step left. Profession, trade, and city were removed rather
+            // than left unreachable, so nothing can route back into them by accident - a dead
+            // branch that still compiles is a dead branch someone eventually calls.
+            ChangePage(1);
         }
 
         private enum CharCreationStep
         {
             Appearence = 0,
-            ChooseProfession = 1,
-            ChooseTrade = 2,
-            ChooseCity = 3
         }
     }
 }

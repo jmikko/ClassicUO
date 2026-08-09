@@ -221,8 +221,39 @@ namespace ClassicUO.Game.UI.Gumps.CharCreation
             _characterInfo.IsFemale = false;
             _characterInfo.Race = RaceType.HUMAN;
 
+            HideRacePicker();
+
             HandleGenreChange();
             HandleRaceChanged();
+        }
+
+        /// <summary>
+        /// Hides Ultima's three-race picker. Species is a D&amp;D choice now, made on the setup
+        /// screen from nine options, and the server applies it after creation - so offering Human,
+        /// Elf, and Gargoyle here as well means picking a race twice and having the second answer
+        /// silently win.
+        /// <para>
+        /// Hidden rather than deleted: the controls still hold the race that drives which hair and
+        /// beard styles are offered. Human stays selected, which gives the standard styles, and
+        /// they suit every species that maps to a human body. The server clears any style the
+        /// chosen species cannot wear.
+        /// </para>
+        /// </summary>
+        private void HideRacePicker()
+        {
+            foreach (Control child in Children)
+            {
+                if (child is Button button && IsRaceButton((Buttons)button.ButtonID))
+                {
+                    button.IsVisible = false;
+                    button.IsEnabled = false;
+                }
+            }
+        }
+
+        private static bool IsRaceButton(Buttons id)
+        {
+            return id is Buttons.HumanButton or Buttons.ElfButton or Buttons.GargoyleButton;
         }
 
         private void CreateCharacter(bool isFemale, RaceType race)
