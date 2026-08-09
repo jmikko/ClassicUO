@@ -782,6 +782,13 @@ namespace ClassicUO.Game.Scenes
                     {
                         GameActions.Attack(_world, mob);
                     }
+                    else if (_world.Player == mob)
+                    {
+                        // Double-clicking yourself means "show me my paperdoll", and that is a
+                        // window about a character this client is already drawing. Asking the
+                        // server for it is the same ceremony the top-bar button used to perform.
+                        GameActions.OpenPaperdoll(_world, mob.Serial);
+                    }
                     else
                     {
                         GameActions.DoubleClick(_world, mob);

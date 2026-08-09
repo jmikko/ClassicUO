@@ -52,13 +52,35 @@ namespace ClassicUO.Game
             UIManager.Add(new MacroGump(world, name));
         }
 
+        /// <summary>
+        /// Opens a paperdoll - your own without asking, anyone else's by asking the server.
+        /// <para>
+        /// Ultima made even your own paperdoll a round trip: the client sends a double click with
+        /// the high bit set and waits for the server to send back 0x88 saying yes. That existed to
+        /// carry a title and a "may this player lift things off it" flag, and to let the server
+        /// refuse. For your own character it is pure ceremony - the body, the equipment and the
+        /// name are all things this client already knows, because it is drawing them - and the
+        /// D&amp;D server has no reason to keep a UO handler alive just to grant permission for a
+        /// window about yourself. So your own opens locally and cannot fail to open.
+        /// </para>
+        /// <para>
+        /// Someone else's still goes through the server, where the refusal means something.
+        /// </para>
+        /// </summary>
         public static void OpenPaperdoll(World world, uint serial)
         {
             PaperDollGump paperDollGump = UIManager.GetGump<PaperDollGump>(serial);
 
             if (paperDollGump == null)
             {
-                DoubleClick(world, serial | 0x80000000);
+                if (world.Player != null && serial == world.Player.Serial)
+                {
+                    OpenOwnPaperdoll(world);
+                }
+                else
+                {
+                    DoubleClick(world, serial | 0x80000000);
+                }
             }
             else
             {
@@ -70,6 +92,24 @@ namespace ClassicUO.Game
                 paperDollGump.SetInScreen();
                 paperDollGump.BringOnTop();
             }
+        }
+
+        /// <summary>
+        /// Builds the local player's paperdoll from what the client already has.
+        /// <para>
+        /// canLift is true because it is your own equipment; the server's flag only ever withheld
+        /// that on someone else's doll. The remembered position is reused so the window comes back
+        /// where it was left, which is what the server path did too.
+        /// </para>
+        /// </summary>
+        private static void OpenOwnPaperdoll(World world)
+        {
+            if (!UIManager.GetGumpCachePosition(world.Player.Serial, out Point location))
+            {
+                location = new Point(100, 100);
+            }
+
+            UIManager.Add(new PaperDollGump(world, world.Player.Serial, true) { Location = location });
         }
 
         public static void OpenSettings(World world, int page = 0)
