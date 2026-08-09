@@ -110,4 +110,16 @@
 
   </Target>
 
+  <!--
+    Bespoke spell icons ship with the client rather than being dropped into the output folder by
+    hand. Publishing writes over bin/dist, so anything left there is one publish away from being
+    lost - and art that only exists on one machine is not really part of the build.
+  -->
+  <ItemGroup>
+    <Content Include="Data\SpellIcons\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>Data\SpellIcons\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </Content>
+  </ItemGroup>
+
 </Project>

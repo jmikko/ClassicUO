@@ -351,8 +351,11 @@ namespace ClassicUO.Game.DnD
 
             if (!Directory.Exists(directory))
             {
-                // Not an error. Most installations will have no bespoke art, and the gump mapping
-                // is a complete answer on its own.
+                // Named, not passed over in silence. Having no bespoke art is a perfectly normal
+                // state, but "the folder is missing" and "the folder is somewhere else than you
+                // think" look identical from the outside - and the server tree has a Data folder
+                // too, which is exactly where the first icon anyone added ended up.
+                Log.Info($"No bespoke spell icons: {directory} does not exist.");
                 return;
             }
 
@@ -380,9 +383,15 @@ namespace ClassicUO.Game.DnD
                 }
             }
 
+            // Reported either way, and with the full path. A folder that exists but is empty is the
+            // other half of the same confusion.
             if (loaded > 0)
             {
-                Log.Info($"Loaded {loaded} bespoke spell icon(s) from {IconDirectory}.");
+                Log.Info($"Loaded {loaded} bespoke spell icon(s) from {directory}.");
+            }
+            else
+            {
+                Log.Info($"No bespoke spell icons found in {directory}.");
             }
         }
 
