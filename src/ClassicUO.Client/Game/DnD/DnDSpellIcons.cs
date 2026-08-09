@@ -340,7 +340,25 @@ namespace ClassicUO.Game.DnD
 
             Texture2D texture;
 
-            return m_Loaded.TryGetValue(spellName ?? string.Empty, out texture) ? texture : null;
+            return m_Loaded.TryGetValue(ToFileName(spellName), out texture) ? texture : null;
+        }
+
+        /// <summary>
+        /// The filename a spell's art must use.
+        /// <para>
+        /// Two SRD spells - Blindness/Deafness and Enlarge/Reduce - have a slash in their name, and
+        /// no file on Windows can. Matching on the raw name meant those two could never have art
+        /// and nothing would ever say why. The slash becomes a hyphen on both sides.
+        /// </para>
+        /// </summary>
+        public static string ToFileName(string spellName)
+        {
+            if (string.IsNullOrEmpty(spellName))
+            {
+                return string.Empty;
+            }
+
+            return spellName.Replace('/', '-').Replace('\\', '-').Replace(':', '-');
         }
 
         private static void Scan()
