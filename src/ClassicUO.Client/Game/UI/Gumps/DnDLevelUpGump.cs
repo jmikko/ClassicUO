@@ -10,6 +10,7 @@ using ClassicUO.Renderer;
 
 namespace ClassicUO.Game.UI.Gumps
 {
+        public enum ChoiceKind { FightingStyle, Expertise, Invocation, PactBoon, Metamagic }
     internal class DnDLevelUpGump : Gump
     {
         private const int BUTTON_CONFIRM = 1;
@@ -19,6 +20,7 @@ namespace ClassicUO.Game.UI.Gumps
         private const int BUTTON_CLASS_BASE = 300;
         private const int BUTTON_FEAT_BASE = 500;
         private const int BUTTON_SPELL_BASE = 1000;
+        private const int BUTTON_CHOICE_BASE = 2000;
 
         private readonly int _pendingLevels;
         private readonly int _pendingASI;
@@ -42,9 +44,16 @@ namespace ClassicUO.Game.UI.Gumps
         private readonly Dictionary<int, NiceButton> _classButtons = new Dictionary<int, NiceButton>();
         private readonly Dictionary<int, NiceButton> _featButtons = new Dictionary<int, NiceButton>();
 
+        private readonly List<(int kind, int pending, List<(string name, string desc)> options)> _choices;
+        private readonly List<string> _selectedChoices = new List<string>();
+        private readonly Dictionary<int, (int kind, string name)> _choiceButtonMap = new Dictionary<int, (int kind, string name)>();
+        private readonly Dictionary<int, NiceButton> _choiceButtons = new Dictionary<int, NiceButton>();
+        private readonly Dictionary<int, Label> _choiceLabels = new Dictionary<int, Label>();
+        private readonly Dictionary<int, int> _choicesMadePerKind = new Dictionary<int, int>();
+
         private static readonly string[] _scoreNames = { "STR", "DEX", "CON", "INT", "WIS", "CHA" };
 
-        public DnDLevelUpGump(World world, int pendingLevels, int pendingASI, int pendingSpellsKnown, List<(string name, string parent)> classes, List<string> feats, List<DnDSpellEntry> spells) : base(world, 0, 0)
+        public DnDLevelUpGump(World world, int pendingLevels, int pendingASI, int pendingSpellsKnown, List<(string name, string parent)> classes, List<string> feats, List<DnDSpellEntry> spells, List<(int kind, int pending, List<(string name, string desc)> options)> choices = null) : base(world, 0, 0)
         {
             _pendingLevels = pendingLevels;
             _pendingASI = pendingASI;
@@ -52,6 +61,7 @@ namespace ClassicUO.Game.UI.Gumps
             _classes = classes;
             _feats = feats;
             _spells = spells;
+            _choices = choices ?? new List<(int kind, int pending, List<(string name, string desc)> options)>();
 
             CanMove = true;
             CanCloseWithRightClick = false;
@@ -60,7 +70,7 @@ namespace ClassicUO.Game.UI.Gumps
             Width = 600;
             Height = 700;
 
-            Add(new ResizePic(DnDStyle.BackgroundGraphic) { Width = Width, Height = Height });
+            ResizePic bg = new ResizePic(DnDStyle.BackgroundGraphic) { Width = Width, Height = Height }; Add(bg);
 
             // The count belongs in the title because this window reopens after every accepted
             // level. Two identical windows in a row read as one window that ignored you; a window
@@ -170,6 +180,44 @@ namespace ClassicUO.Game.UI.Gumps
                 currentY += (row + 1) * 24 + 10;
             }
 
+            
+            if (_choices.Count > 0)
+            {
+                foreach (var choiceGroup in _choices)
+                {
+                    _choicesMadePerKind[choiceGroup.kind] = 0;
+                    var label = new Label($"{(ChoiceKind)choiceGroup.kind} (Pending: {choiceGroup.pending})", true, DnDStyle.HueHeading, Width - 20, 1, FontStyle.BlackBorder) { X = DnDStyle.Margin, Y = currentY };
+                    Add(label);
+                    _choiceLabels[choiceGroup.kind] = label;
+                    currentY += 24;
+
+                    int row = 0;
+                    int col = 0;
+                    for (int i = 0; i < choiceGroup.options.Count; i++)
+                    {
+                        var opt = choiceGroup.options[i];
+                        int btnId = BUTTON_CHOICE_BASE + _choiceButtonMap.Count;
+                        NiceButton btn = new NiceButton(14 + (col * 190), currentY + (row * 24), 180, 20, ButtonAction.Activate, opt.name, 1);
+                        btn.ButtonParameter = btnId;
+                        btn.IsSelected = false;
+                        Add(btn);
+                        _choiceButtons[btnId] = btn;
+                        _choiceButtonMap[btnId] = (choiceGroup.kind, opt.name);
+
+                        col++;
+                        if (col >= 3)
+                        {
+                            col = 0;
+                            row++;
+                        }
+                    }
+                    currentY += (row + 1) * 24 + 10;
+                }
+            }
+
+            Height = Math.Max(700, currentY + 60);
+            bg.Height = Height;
+
             NiceButton confirmBtn = new NiceButton(Width / 2 - 40, Height - 30, 80, 22, ButtonAction.Activate, "Confirm", 0);
             confirmBtn.ButtonParameter = BUTTON_CONFIRM;
             Add(confirmBtn);
@@ -201,7 +249,7 @@ namespace ClassicUO.Game.UI.Gumps
                     selectedSpellIds.Add(spellId);
                 }
 
-                NetClient.Socket.Send_DnDLevelUpSubmit(World, _chosenClass, _chosenFeat, _abilityIncreases, selectedSpellIds);
+                NetClient.Socket.Send_DnDLevelUpSubmit(World, _chosenClass, _chosenFeat, _abilityIncreases, selectedSpellIds, _selectedChoices);
                 Dispose();
                 return;
             }
@@ -301,6 +349,41 @@ namespace ClassicUO.Game.UI.Gumps
                 }
                 UpdateSpellLabels();
             }
+            else if (buttonID >= BUTTON_CHOICE_BASE && buttonID < BUTTON_CHOICE_BASE + _choiceButtonMap.Count)
+            {
+                var map = _choiceButtonMap[buttonID];
+                var btn = _choiceButtons[buttonID];
+                
+                // Find how many are pending for this kind
+                int pending = 0;
+                foreach (var c in _choices)
+                {
+                    if (c.kind == map.kind) pending = c.pending;
+                }
+
+                if (_selectedChoices.Contains(map.name))
+                {
+                    _selectedChoices.Remove(map.name);
+                    _choicesMadePerKind[map.kind]--;
+                    btn.IsSelected = false;
+                }
+                else if (_choicesMadePerKind[map.kind] < pending)
+                {
+                    _selectedChoices.Add(map.name);
+                    _choicesMadePerKind[map.kind]++;
+                    btn.IsSelected = true;
+                }
+                else
+                {
+                    btn.IsSelected = false;
+                }
+                
+                if (_choiceLabels.TryGetValue(map.kind, out var label))
+                {
+                    label.Text = $"{(ChoiceKind)map.kind} (Pending: {pending - _choicesMadePerKind[map.kind]})";
+                }
+            }
+
         }
 
         private void UpdateASILabels()

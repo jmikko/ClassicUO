@@ -4849,13 +4849,31 @@ namespace ClassicUO.Network
                             spells.Add(new DnDSpellEntry(spellId, spellLevel, school, spellName));
                         }
 
+                        var choices = new List<(int kind, int pending, List<(string name, string desc)> options)>();
+                        if (p.Position < p.Length)
+                        {
+                            int choicesCount = p.ReadUInt8();
+                            for (int i = 0; i < choicesCount; ++i)
+                            {
+                                int kind = p.ReadUInt8();
+                                int pending = p.ReadUInt8();
+                                int optionsCount = p.ReadInt16BE();
+                                var options = new List<(string name, string desc)>();
+                                for (int j = 0; j < optionsCount; ++j)
+                                {
+                                    options.Add((p.ReadASCII(), p.ReadASCII()));
+                                }
+                                choices.Add((kind, pending, options));
+                            }
+                        }
+
                         // The server resends this prompt after every accepted level, for as long as
                         // anything is still pending. Without closing the previous one first, the
                         // windows stack up perfectly aligned and the top one looks like the old one
                         // with its selection mysteriously cleared.
                         UIManager.GetGump<DnDLevelUpGump>()?.Dispose();
 
-                        UIManager.Add(new DnDLevelUpGump(world, pendingLevels, pendingASI, pendingSpellsKnown, classes, feats, spells));
+                        UIManager.Add(new DnDLevelUpGump(world, pendingLevels, pendingASI, pendingSpellsKnown, classes, feats, spells, choices));
                         break;
                     }
 
@@ -4917,6 +4935,26 @@ namespace ClassicUO.Network
                             UIManager.Add(gump);
                         }
 
+                        break;
+                    }
+
+                case 0x47: // D&D: resource pools and feature uses
+                    {
+                        int resourceCount = p.ReadUInt8();
+                        var resources = new System.Collections.Generic.List<ClassicUO.Game.UI.Gumps.DnDResourceEntry>();
+
+                        for (int i = 0; i < resourceCount; ++i)
+                        {
+                            resources.Add(new ClassicUO.Game.UI.Gumps.DnDResourceEntry
+                            {
+                                Name = p.ReadASCII(),
+                                Current = p.ReadInt16BE(),
+                                Max = p.ReadInt16BE(),
+                                Description = p.ReadASCII()
+                            });
+                        }
+
+                        ClassicUO.Game.UI.Gumps.DnDResourcesState.Apply(resources);
                         break;
                     }
 

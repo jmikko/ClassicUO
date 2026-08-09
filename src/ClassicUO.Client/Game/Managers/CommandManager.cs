@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: BSD-2-Clause
+// SPDX-License-Identifier: BSD-2-Clause
 
 using System;
 using System.Collections.Generic;
@@ -70,6 +70,24 @@ namespace ClassicUO.Game.Managers
                 {
                     CUOEnviroment.Debug = !CUOEnviroment.Debug;
 
+                }
+            );
+
+            Register
+            (
+                "resources",
+                s =>
+                {
+                    ClassicUO.Game.UI.Gumps.DnDResourcesState.ToggleGump(_world);
+                }
+            );
+
+            Register
+            (
+                "features",
+                s =>
+                {
+                    ClassicUO.Game.UI.Gumps.DnDResourcesState.ToggleGump(_world);
                 }
             );
         }

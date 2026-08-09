@@ -3044,7 +3044,7 @@ namespace ClassicUO.Network
         (
             this NetClient socket, World world,
             string chosenClass, string chosenFeat,
-            int[] abilityIncreases, List<int> spellIds
+            int[] abilityIncreases, List<int> spellIds, List<string> choices
         )
         {
             const byte ID = 0xD7;
@@ -3083,6 +3083,14 @@ namespace ClassicUO.Network
             {
                 writer.WriteUInt8(0);
                 writer.WriteInt32BE(spellIds[i]);
+            }
+
+            writer.WriteUInt8(0);
+            writer.WriteInt32BE(choices.Count);
+
+            for (int i = 0; i < choices.Count; i++)
+            {
+                WriteEncodedString(ref writer, choices[i]);
             }
 
             if (length < 0)
