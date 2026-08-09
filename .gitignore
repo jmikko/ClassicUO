@@ -265,3 +265,11 @@ __pycache__/
 *.pyc
 /.svn
 Data
+
+# The bare `Data` rule above matches any directory of that name, anywhere - it is meant for the
+# Ultima client assets, which nobody should commit. It also swallowed the spell icons, which are
+# ours and belong in the repository: 230 generated images that a `git clean` would otherwise
+# destroy with no way to get them back short of paying to draw them again.
+!src/ClassicUO.Client/Data/
+!src/ClassicUO.Client/Data/SpellIcons/
+!src/ClassicUO.Client/Data/SpellIcons/**
