@@ -4859,6 +4859,36 @@ namespace ClassicUO.Network
                         break;
                     }
 
+                case 0x46: // D&D: the eighteen skills and what each rolls at
+                    {
+                        int skillCount = p.ReadUInt8();
+
+                        var skills = new DnDSkillEntry[skillCount];
+
+                        for (int i = 0; i < skillCount; ++i)
+                        {
+                            var skill = (DnDSkill)p.ReadUInt8();
+
+                            // Signed on the wire: a low ability score gives a negative modifier,
+                            // and reading it unsigned would show -1 as +255.
+                            int modifier = (sbyte)p.ReadUInt8();
+
+                            byte flags = p.ReadUInt8();
+
+                            skills[i] = new DnDSkillEntry
+                            {
+                                Skill = skill,
+                                Modifier = modifier,
+                                Proficient = (flags & 0x01) != 0,
+                                Expertise = (flags & 0x02) != 0
+                            };
+                        }
+
+                        DnDSkillState.Apply(skills);
+
+                        break;
+                    }
+
                 case 0x45: // D&D: the running death-save count while dying
                     {
                         var phase = (DnDDyingPhase)p.ReadUInt8();

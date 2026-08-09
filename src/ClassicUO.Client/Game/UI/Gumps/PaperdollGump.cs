@@ -20,20 +20,15 @@ namespace ClassicUO.Game.UI.Gumps
     {
         private static readonly ushort[] PeaceModeBtnGumps = { 0x07e5, 0x07e6, 0x07e7 };
         private static readonly ushort[] WarModeBtnGumps = { 0x07e8, 0x07e9, 0x07ea };
-        private GumpPic _combatBook,
-            _racialAbilitiesBook;
         private HitBox _hitBox;
         private bool _isWarMode,
             _isMinimized;
 
         private PaperDollInteractable _paperDollInteractable;
-        private GumpPic _partyManifestPic;
 
         private GumpPic _picBase;
-        private GumpPic _profilePic;
         private readonly List<EquipmentSlot> _slots = new List<EquipmentSlot>();
         private Label _titleLabel;
-        private GumpPic _virtueMenuPic;
         private Button _warModeBtn;
 
         public PaperDollGump(World world) : base(world, 0, 0)
@@ -81,19 +76,6 @@ namespace ClassicUO.Game.UI.Gumps
         {
             UIManager.SavePosition(LocalSerial, Location);
 
-            if (LocalSerial == World.Player)
-            {
-                if (_virtueMenuPic != null)
-                {
-                    _virtueMenuPic.MouseDoubleClick -= VirtueMenu_MouseDoubleClickEvent;
-                }
-
-                if (_partyManifestPic != null)
-                {
-                    _partyManifestPic.MouseDoubleClick -= PartyManifest_MouseDoubleClickEvent;
-                }
-            }
-
             Clear();
             base.Dispose();
         }
@@ -111,32 +93,26 @@ namespace ClassicUO.Game.UI.Gumps
             _picBase?.Dispose();
             _hitBox?.Dispose();
 
-            var showPaperdollBooks =
-                LocalSerial == World.Player && World.ClientFeatures.PaperdollBooks;
-            var showRacialAbilitiesBook =
-                showPaperdollBooks && Client.Game.UO.Version >= ClientVersion.CV_7000;
-
+            // Ultima's paperdoll carried buttons for Help, Quests, Guild, Skills, Virtue, Profile
+            // and the party manifest, plus the combat and racial ability books. None of those
+            // systems exist here: each was a request the server answered, and the handlers that
+            // answered them are UO content this rebuild removed. A button that does nothing when
+            // pressed is worse than an absent one - it reads as a bug in the game rather than a
+            // feature that was never meant to be here - so they are gone rather than disabled.
+            //
+            // Skills and Status both pointed at UO's numbers. Status now opens the D&D character
+            // sheet, which is where this game keeps the same information.
             if (LocalSerial == World.Player)
             {
                 Add(_picBase = new GumpPic(0, 0, 0x07d0, 0));
                 _picBase.MouseDoubleClick += _picBase_MouseDoubleClick;
-
-                //HELP BUTTON
-                Add(
-                    new Button((int)Buttons.Help, 0x07ef, 0x07f0, 0x07f1)
-                    {
-                        X = 185,
-                        Y = 44 + 27 * 0,
-                        ButtonAction = ButtonAction.Activate
-                    }
-                );
 
                 //OPTIONS BUTTON
                 Add(
                     new Button((int)Buttons.Options, 0x07d6, 0x07d7, 0x07d8)
                     {
                         X = 185,
-                        Y = 44 + 27 * 1,
+                        Y = 44 + 27 * 0,
                         ButtonAction = ButtonAction.Activate
                     }
                 );
@@ -146,52 +122,18 @@ namespace ClassicUO.Game.UI.Gumps
                     new Button((int)Buttons.LogOut, 0x07d9, 0x07da, 0x07db)
                     {
                         X = 185,
+                        Y = 44 + 27 * 1,
+                        ButtonAction = ButtonAction.Activate
+                    }
+                );
+
+                // JOURNAL BUTTON - kept on every client version now that Quests, which used to
+                // take this slot on newer ones, is gone.
+                Add(
+                    new Button((int)Buttons.Journal, 0x7dc, 0x7dd, 0x7de)
+                    {
+                        X = 185,
                         Y = 44 + 27 * 2,
-                        ButtonAction = ButtonAction.Activate
-                    }
-                );
-
-                if (Client.Game.UO.Version < ClientVersion.CV_500A)
-                {
-                    // JOURNAL BUTTON
-                    Add(
-                        new Button((int)Buttons.Journal, 0x7dc, 0x7dd, 0x7de)
-                        {
-                            X = 185,
-                            Y = 44 + 27 * 3,
-                            ButtonAction = ButtonAction.Activate
-                        }
-                    );
-                }
-                else
-                {
-                    // QUESTS BUTTON
-                    Add(
-                        new Button((int)Buttons.Quests, 0x57b5, 0x57b7, 0x57b6)
-                        {
-                            X = 185,
-                            Y = 44 + 27 * 3,
-                            ButtonAction = ButtonAction.Activate
-                        }
-                    );
-                }
-
-                // SKILLS BUTTON
-                Add(
-                    new Button((int)Buttons.Skills, 0x07df, 0x07e0, 0x07e1)
-                    {
-                        X = 185,
-                        Y = 44 + 27 * 4,
-                        ButtonAction = ButtonAction.Activate
-                    }
-                );
-
-                // GUILD BUTTON
-                Add(
-                    new Button((int)Buttons.Guild, 0x57b2, 0x57b4, 0x57b3)
-                    {
-                        X = 185,
-                        Y = 44 + 27 * 5,
                         ButtonAction = ButtonAction.Activate
                     }
                 );
@@ -211,52 +153,31 @@ namespace ClassicUO.Game.UI.Gumps
                     )
                     {
                         X = 185,
-                        Y = 44 + 27 * 6,
+                        Y = 44 + 27 * 3,
                         ButtonAction = ButtonAction.Activate
                     }
                 );
-
-                int profileX = 25;
-                const int SCROLLS_STEP = 14;
-
-                if (showRacialAbilitiesBook)
-                {
-                    profileX += SCROLLS_STEP;
-                }
-
-                Add(_profilePic = new GumpPic(profileX, 196, 0x07D2, 0));
-                _profilePic.MouseDoubleClick += Profile_MouseDoubleClickEvent;
-
-                profileX += SCROLLS_STEP;
-
-                Add(_partyManifestPic = new GumpPic(profileX, 196, 0x07D2, 0));
-                _partyManifestPic.MouseDoubleClick += PartyManifest_MouseDoubleClickEvent;
 
                 _hitBox = new HitBox(228, 260, 16, 16);
                 _hitBox.MouseUp += _hitBox_MouseUp;
 
                 Add(_hitBox);
+
+                // STATUS BUTTON - your own only. Someone else's doll has nothing to show behind
+                // it, since the sheet it opens is your character's.
+                Add(
+                    new Button((int)Buttons.Status, 0x07eb, 0x07ec, 0x07ed)
+                    {
+                        X = 185,
+                        Y = 44 + 27 * 4,
+                        ButtonAction = ButtonAction.Activate
+                    }
+                );
             }
             else
             {
                 Add(_picBase = new GumpPic(0, 0, 0x07d1, 0));
-                Add(_profilePic = new GumpPic(25, 196, 0x07D2, 0));
-                _profilePic.MouseDoubleClick += Profile_MouseDoubleClickEvent;
             }
-
-            // STATUS BUTTON
-            Add(
-                new Button((int)Buttons.Status, 0x07eb, 0x07ec, 0x07ed)
-                {
-                    X = 185,
-                    Y = 44 + 27 * 7,
-                    ButtonAction = ButtonAction.Activate
-                }
-            );
-
-            // Virtue menu
-            Add(_virtueMenuPic = new GumpPic(80, 4, 0x0071, 0));
-            _virtueMenuPic.MouseDoubleClick += VirtueMenu_MouseDoubleClickEvent;
 
             // Equipment slots for hat/earrings/neck/ring/bracelet
 
@@ -289,27 +210,9 @@ namespace ClassicUO.Game.UI.Gumps
             _paperDollInteractable = new PaperDollInteractable(8, 19, LocalSerial, this);
             Add(_paperDollInteractable);
 
-            if (showPaperdollBooks)
-            {
-                Add(_combatBook = new GumpPic(156, 200, 0x2B34, 0));
-                _combatBook.MouseDoubleClick += (sender, e) =>
-                {
-                    GameActions.OpenAbilitiesBook(World);
-                };
-
-                if (showRacialAbilitiesBook)
-                {
-                    Add(_racialAbilitiesBook = new GumpPic(23, 200, 0x2B28, 0));
-
-                    _racialAbilitiesBook.MouseDoubleClick += (sender, e) =>
-                    {
-                        if (UIManager.GetGump<RacialAbilitiesBookGump>() == null)
-                        {
-                            UIManager.Add(new RacialAbilitiesBookGump(World, 100, 100));
-                        }
-                    };
-                }
-            }
+            // The combat and racial ability books went with the systems behind them: UO weapon
+            // abilities have no SRD counterpart, and racial abilities are species traits, which
+            // the character sheet already covers.
 
             // Name and title
             _titleLabel = new Label("", false, 0x0386, 185, font: 1) { X = 39, Y = 262 };
@@ -332,49 +235,10 @@ namespace ClassicUO.Game.UI.Gumps
             _titleLabel.Text = text;
         }
 
-        private void VirtueMenu_MouseDoubleClickEvent(object sender, MouseDoubleClickEventArgs args)
-        {
-            if (args.Button == MouseButtonType.Left)
-            {
-                GameActions.ReplyGump(
-                    World.Player,
-                    0x000001CD,
-                    0x00000001,
-                    new[] { LocalSerial },
-                    new Tuple<ushort, string>[0]
-                );
-            }
-        }
-
-        private void Profile_MouseDoubleClickEvent(object o, MouseDoubleClickEventArgs args)
-        {
-            if (args.Button == MouseButtonType.Left)
-            {
-                GameActions.RequestProfile(LocalSerial);
-            }
-        }
-
-        private void PartyManifest_MouseDoubleClickEvent(
-            object sender,
-            MouseDoubleClickEventArgs args
-        )
-        {
-            if (args.Button == MouseButtonType.Left)
-            {
-                PartyGump party = UIManager.GetGump<PartyGump>();
-
-                if (party == null)
-                {
-                    int x = Client.Game.ClientBounds.Width / 2 - 272;
-                    int y = Client.Game.ClientBounds.Height / 2 - 240;
-                    UIManager.Add(new PartyGump(World, x, y, World.Party.CanLoot));
-                }
-                else
-                {
-                    party.BringOnTop();
-                }
-            }
-        }
+        // The virtue, profile and party-manifest handlers went with the icons that opened them.
+        // Virtues and profiles are UO systems this rebuild removed outright; the party manifest
+        // asked a party system whose implementation is parked in the server's Legacy tree, so it
+        // opened an empty window at best.
 
         public override void Update()
         {
@@ -583,11 +447,6 @@ namespace ClassicUO.Game.UI.Gumps
 
             switch ((Buttons)buttonID)
             {
-                case Buttons.Help:
-                    GameActions.RequestHelp();
-
-                    break;
-
                 case Buttons.Options:
                     GameActions.OpenSettings(World);
 
@@ -603,21 +462,6 @@ namespace ClassicUO.Game.UI.Gumps
 
                     break;
 
-                case Buttons.Quests:
-                    GameActions.RequestQuestMenu(World);
-
-                    break;
-
-                case Buttons.Skills:
-                    GameActions.OpenSkills(World);
-
-                    break;
-
-                case Buttons.Guild:
-                    GameActions.OpenGuildGump(World);
-
-                    break;
-
                 case Buttons.PeaceWarToggle:
                     GameActions.ToggleWarMode(World.Player);
 
@@ -627,22 +471,24 @@ namespace ClassicUO.Game.UI.Gumps
 
                     if (LocalSerial == World.Player)
                     {
-                        UIManager.GetGump<BaseHealthBarGump>(LocalSerial)?.Dispose();
+                        // UO's status gump shows Str, Dex, Int, stamina and mana, none of which
+                        // this game has. The D&D sheet is the same button's honest answer.
+                        DnDCharacterSheetGump sheet = UIManager.GetGump<DnDCharacterSheetGump>();
 
-                        StatusGumpBase status = StatusGumpBase.GetStatusGump();
-
-                        if (status == null)
+                        if (sheet == null)
                         {
                             UIManager.Add(
-                                StatusGumpBase.AddStatusGump(World,
-                                    Mouse.Position.X - 100,
-                                    Mouse.Position.Y - 25
-                                )
+                                new DnDCharacterSheetGump(World)
+                                {
+                                    X = Mouse.Position.X - 100,
+                                    Y = Mouse.Position.Y - 25
+                                }
                             );
                         }
                         else
                         {
-                            status.BringOnTop();
+                            sheet.SetInScreen();
+                            sheet.BringOnTop();
                         }
                     }
                     else
@@ -689,13 +535,9 @@ namespace ClassicUO.Game.UI.Gumps
 
         private enum Buttons
         {
-            Help,
             Options,
             LogOut,
             Journal,
-            Quests,
-            Skills,
-            Guild,
             PeaceWarToggle,
             Status
         }
