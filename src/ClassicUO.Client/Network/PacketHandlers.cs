@@ -4859,6 +4859,37 @@ namespace ClassicUO.Network
                         break;
                     }
 
+                case 0x45: // D&D: the running death-save count while dying
+                    {
+                        var phase = (DnDDyingPhase)p.ReadUInt8();
+                        int successes = p.ReadUInt8();
+                        int failures = p.ReadUInt8();
+
+                        DnDDeathState.Apply(phase, successes, failures);
+
+                        var savesGump = UIManager.GetGump<DnDDeathSavesGump>();
+
+                        if (phase == DnDDyingPhase.Alive)
+                        {
+                            // Back on your feet - the count means nothing now, and a window still
+                            // saying "you are dying" is worse than no window at all.
+                            savesGump?.Dispose();
+                        }
+                        else if (savesGump == null)
+                        {
+                            // Opened by the packet rather than by the player, who at this point
+                            // cannot open anything.
+                            var gump = new DnDDeathSavesGump(world);
+
+                            DnDStyle.Centre(gump);
+                            gump.Y = 80;
+
+                            UIManager.Add(gump);
+                        }
+
+                        break;
+                    }
+
                 default:
                     Log.Warn($"Unhandled 0xBF - sub: {cmd.ToHex()}");
 
