@@ -135,22 +135,47 @@ namespace ClassicUO.Game.UI.Gumps
                     currentY += 24;
                 }
 
-                currentY = asiStartY;
+                // Feats go below the ability rows, in a grid.
+                //
+                // They used to sit beside them in one 150px column, which broke three ways at
+                // once as the feat list grew to thirty-one: the column ran hundreds of pixels
+                // past the bottom of the window, the Confirm button was drawn on top of it, and
+                // every name longer than about eighteen characters was cut off - so six entries
+                // all read "Ability Score Improveme...", indistinguishable from each other.
+                //
+                // Three columns turn thirty-one rows into eleven and give each name enough width
+                // to finish its own sentence.
+                currentY = Math.Max(asiStartY + 144, currentY) + 10;
+
                 if (feats.Count > 0)
                 {
-                    Add(new Label("Available Feats:", true, DnDStyle.HueHeading, Width - 20, 1, FontStyle.BlackBorder) { X = 200, Y = currentY });
+                    Add(new Label("Available Feats:", true, DnDStyle.HueHeading, Width - 20, 1, FontStyle.BlackBorder) { X = DnDStyle.Margin, Y = currentY });
                     currentY += 24;
+
+                    const int featColumns = 3;
+                    const int featColumnWidth = 190;
+                    const int featButtonWidth = 184;
+
                     for (int i = 0; i < feats.Count; i++)
                     {
-                        NiceButton btn = new NiceButton(200, currentY, 150, 20, ButtonAction.Activate, feats[i], 2);
+                        int col = i % featColumns;
+                        int row = i / featColumns;
+
+                        int x = DnDStyle.Margin + (col * featColumnWidth);
+                        int y = currentY + (row * 24);
+
+                        NiceButton btn = new NiceButton(x, y, featButtonWidth, 20, ButtonAction.Activate, feats[i], 2);
                         btn.ButtonParameter = BUTTON_FEAT_BASE + i;
                         btn.IsSelected = false;
                         Add(btn);
                         _featButtons[btn.ButtonParameter] = btn;
-                        currentY += 24;
                     }
+
+                    // Rounded up, so a trailing part-row still gets its height counted.
+                    int featRows = (feats.Count + featColumns - 1) / featColumns;
+
+                    currentY += (featRows * 24) + 10;
                 }
-                currentY = Math.Max(asiStartY + 144, currentY) + 10;
             }
 
             if (_pendingSpellsKnown > 0)
@@ -215,10 +240,13 @@ namespace ClassicUO.Game.UI.Gumps
                 }
             }
 
-            Height = Math.Max(700, currentY + 60);
+            // Room for the Confirm button under the last row, rather than a fixed 60 that assumed
+            // the content had already stopped. Confirm sits at Height - 34, so the padding has to
+            // clear it or the button lands on the content again.
+            Height = Math.Max(400, currentY + 50);
             bg.Height = Height;
 
-            NiceButton confirmBtn = new NiceButton(Width / 2 - 40, Height - 30, 80, 22, ButtonAction.Activate, "Confirm", 0);
+            NiceButton confirmBtn = new NiceButton(Width / 2 - 40, Height - 34, 80, 22, ButtonAction.Activate, "Confirm", 0);
             confirmBtn.ButtonParameter = BUTTON_CONFIRM;
             Add(confirmBtn);
         }
